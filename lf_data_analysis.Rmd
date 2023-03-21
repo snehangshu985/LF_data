@@ -1,0 +1,191 @@
+---
+title: "LHF Data Analysis"
+author: "SM & C Group"
+date: '2023-03-21'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Analysis of Ladle Furnace Data 
+
+LHF data of ISP, Steel Melting Shop has been analysed using R. Data for the month of April' 2022 has been collected from plant in form of MS Excel sheet. 
+Aim of the analysis is to clean the data set and make an quick exploratry data analysis
+
+Packages required for the analysis is loaded as below
+
+```{r echo=F, message=F}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+```
+
+## loading and cleaning of data set
+
+The data has been loaded using the read_excel(). Further help for the function can been seen using "?read_excel()" command in R. The data is then converted from Tibble to data frame for the ease of analysis. The code and 
+
+
+
+
+```{r}
+# data is in the data folder of the workig directory
+df <- read_excel("data/aprildata.xlsx")
+# converting the data set from tibble to data frame
+df <- as.data.frame(df)
+# selectig the columns LHF & from 2 to 12
+df <- df %>% select(LHF, 2:12)
+
+# only taking the complete data set
+df <- subset(df, complete.cases(df))
+# changing the variable names
+mynames <- c("LHF", "Heat_No", "LADLE_IN", "ARCING_START", "ARCING_END", 
+             "INITIAL_TEMP", "FINAL_TEMP","Total_arcing_time", 
+             "C", "Si", "Mn", "S")
+
+mynames <- tolower(mynames)
+
+names(df) <- mynames
+
+# taking the only the part of the data set in which EDA will be done
+df <- df %>% select("lhf", "heat_no", "initial_temp", "final_temp", 
+                    "total_arcing_time", "c", "si", "mn", "s")
+
+# recoding the factor lhf 2 and 1
+df$lhf <- recode(df$lhf,  "LHF 2" = "lhf2", "LHF 1" = "lhf1" )
+
+# taking the only the minutes of arching
+df$total_arcing_time <- minute(df$total_arcing_time)
+# creating columns of temp_increase
+df_mod <- df%>% mutate (temp_increase = final_temp - initial_temp)
+df_mod <- df_mod %>% select(-heat_no, - initial_temp, -final_temp)
+
+
+
+```
+
+
+ Seeing the first 10 entries of the data set
+ 
+```{r}
+head(df_mod, 10)
+```
+ 
+ It has been found that there are some mis-typing in Si and Mn entries. Corrections has been done using the following codes
+ 
+```{r}
+my_id <- length(df_mod$si)
+
+for(i in 1:my_id) {
+    if(df_mod$si[i] > 1){
+        df_mod$si[i] = df_mod$si[i]/100
+    }
+}
+
+for(i in 1:my_id) {
+    if(df_mod$mn[i] > 3){
+        df_mod$mn[i] = df_mod$mn[i]/10
+    }
+}
+
+for(i in 1:my_id) {
+    if(df_mod$mn[i] > 3){
+        df_mod$mn[i] = df_mod$mn[i]/10
+    }
+}
+
+```
+ 
+# Exploratory Data Analysis
+
+Some exploratory data analysis done using the basic histogram, scatter plots and boxplots. 
+
+The output plots and codes are given below
+
+### Scatter Plot of temperature increase vs arcig time
+
+
+```{r}
+# make basic scatter plot of arcing time vs temperature increase
+sct_t_a <- ggplot(df_mod, aes(total_arcing_time, 
+                              temp_increase, color = lhf)) +
+    geom_point(position = "jitter") + 
+    geom_smooth(method = "lm", se=F) + 
+    ylab("Increase in Temperature") + 
+    xlab("Total Arcing Time") +
+    labs(color = "LHF")
+
+print(sct_t_a)
+```
+
+### Histograms of arcing time and temperature increase
+
+
+
+```{r}
+# histogram
+h_arctime <- ggplot(df_mod, aes(total_arcing_time)) + 
+    geom_histogram(bins = 10) + 
+    facet_grid(lhf ~ .)
+
+print(h_arctime)
+
+```
+
+
+```{r}
+h_temp_increase <- ggplot(df_mod, aes(temp_increase)) + 
+    geom_histogram(bins = 10, fill="light blue", color = "red") + 
+    facet_grid(lhf ~ .) 
+
+print(h_temp_increase)
+```
+
+
+
+
+## Box plot and density of chemistry
+
+
+```{r}
+# box_plot
+
+df_mod2 <- df_mod %>% gather("c", "si",  
+                             key = "Elements", value = "Chemistry")
+
+
+
+
+b_plot <- ggplot(df_mod2, aes(Elements, Chemistry)) + 
+    geom_point(color = "blue", alpha = .3, position = "jitter") +
+    geom_boxplot()
+
+print(b_plot )
+
+```
+
+
+```{r}
+d_plot <- ggplot(df_mod2, aes(x = Chemistry, 
+                    color = Elements, fill = Elements)) + 
+    geom_density(alpha = .3)
+
+print(d_plot)
+```
+
+## Pair Plot matrix
+
+All the variables and relationships among them in a single plot
+
+```{r, echo=F, message=F}
+library(GGally)
+ggpairs(df_mod2)
+```
+
+
+
+
+
